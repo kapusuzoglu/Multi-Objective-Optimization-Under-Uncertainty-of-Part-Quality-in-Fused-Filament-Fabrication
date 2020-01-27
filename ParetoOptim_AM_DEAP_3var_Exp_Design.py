@@ -216,7 +216,7 @@ def main():
     #
     # MUTPB is the probability for mutating an individual
     algorithms.eaMuPlusLambda(pop, toolbox, mu=MU, lambda_=LAMBDA,
-                              cxpb=0.7, mutpb=0.3, ngen=2,
+                              cxpb=0.7, mutpb=0.3, ngen=10,
                               stats=stats, halloffame=hof, verbose=True)
 
     return pop, stats, hof

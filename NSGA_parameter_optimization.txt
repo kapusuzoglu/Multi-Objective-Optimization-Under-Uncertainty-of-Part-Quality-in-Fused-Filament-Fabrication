@@ -1,0 +1,10 @@
+Mutation prob.: 0.2,
+
+
+Crossover prob.: 0.5
+
+
+Population: 100, 200
+
+
+Num. of generations: 10

@@ -13,10 +13,12 @@
 #    You should have received a copy of the GNU Lesser General Public
 #    License along with DEAP. If not, see <http://www.gnu.org/licenses/>.
 
-import array
-import logging
-import random
+import array, copy, random, time
+# import logging
 import numpy as np
+import pandas as pd
+import seaborn
+seaborn.set(style='whitegrid')
 
 # imports for the BNN
 import torch
@@ -24,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pickle
 
-from deap import algorithms, base, benchmarks, creator, tools
+from deap import algorithms, base, creator, tools
 
 IND_SIZE = 3
 N_CYCLES = 1
@@ -199,36 +201,90 @@ toolbox.decorate("mate", checkBounds([217, 26, 1], [278, 44, 3]))
 toolbox.decorate("mutate", checkBounds([217, 26, 1], [278, 44, 3]))
 
 
+toolbox.max_gen = 2  # num of generations
+toolbox.pop_size = 50   # population size
+toolbox.mut_prob = 0.2  # mutation probability
+
 def main():
     random.seed(64)
 
-    MU, LAMBDA = 100, 100
+    MU, LAMBDA = toolbox.pop_size, toolbox.pop_size
     pop = toolbox.population(n=MU)
     hof = tools.ParetoFront()
-    stats = tools.Statistics(lambda ind: ind.fitness.values)
-    stats.register("avg", np.mean, axis=0)
-    stats.register("std", np.std, axis=0)
-    stats.register("min", np.min, axis=0)
-    stats.register("max", np.max, axis=0)
+    # stats = tools.Statistics(lambda ind: ind.fitness.values)
+    # stats.register("avg", np.mean, axis=0)
+    # stats.register("std", np.std, axis=0)
+    # stats.register("min", np.min, axis=0)
+    # stats.register("max", np.max, axis=0)
 
-    # CXPB  is the probability with which two individuals
-    #       are crossed
-    #
-    # MUTPB is the probability for mutating an individual
-    algorithms.eaMuPlusLambda(pop, toolbox, mu=MU, lambda_=LAMBDA,
-                              cxpb=0.7, mutpb=0.3, ngen=2,
+    # create a stats to store the individuals not only their objective function values
+    stats = tools.Statistics()
+    stats.register("pop", copy.deepcopy)
+
+    # Storing all the required information in the toolbox and using DEAP's
+    # algorithms.eaMuPlusLambda function allows us to create a very compact -
+    # albeit not a 100% exact copy of the original- implementation of NSGA-II.
+    pop, logbook = algorithms.eaMuPlusLambda(pop, toolbox, mu=MU, lambda_=LAMBDA,
+                              cxpb=1-toolbox.mut_prob, mutpb=toolbox.mut_prob,
+                                             ngen=toolbox.max_gen,
                               stats=stats, halloffame=hof, verbose=True)
 
-    return pop, stats, hof
+    return pop, stats, hof, logbook
+
+# # Plot the Pareto front
+# if __name__ == "__main__":
+#     pop, stats, hof, logbook = main()
+#
+#     import matplotlib.pyplot as plt
+#     import numpy
+#
+#     front = numpy.array([ind.fitness.values for ind in pop])
+#     plt.scatter(front[:,0], front[:,1], c="b")
+#     plt.axis("tight")
+#     plt.show()
 
 
+def animate(frame_index, logbook):
+    'Updates all plots to match frame _i_ of the animation.'
+    ax.clear()
+    plot_colors = seaborn.color_palette("Set1", n_colors=10)
+    fronts = tools.emo.sortLogNondominated(logbook.select('pop')[frame_index],
+                                           len(logbook.select('pop')[frame_index]))
+    for i, inds in enumerate(fronts):
+        par = [toolbox.evaluate(ind) for ind in inds]
+        df = pd.DataFrame(par)
+        df.plot(ax=ax, kind='scatter', label='Front ' + str(i + 1),
+                x=df.columns[0], y=df.columns[1], alpha=0.47,
+                color=plot_colors[i % len(plot_colors)])
+
+    ax.set_title('$t=$' + str(frame_index))
+    ax.set_xlabel('$f_1(\mathbf{x})$');
+    ax.set_ylabel('$f_2(\mathbf{x})$')
+    return []
+
+# Animation
 if __name__ == "__main__":
-    pop, stats, hof = main()
+    pop, stats, hof, logbook = main()
 
     import matplotlib.pyplot as plt
-    import numpy
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
+    plt.rcParams['text.latex.preamble'] = '\\usepackage{libertine}\n\\usepackage[utf8]{inputenc}'
 
-    front = numpy.array([ind.fitness.values for ind in pop])
-    plt.scatter(front[:,0], front[:,1], c="b")
-    plt.axis("tight")
-    plt.show()
+    from matplotlib import animation
+    from IPython.display import HTML
+
+    from IPython.display import set_matplotlib_formats
+    set_matplotlib_formats('retina')
+    
+    # get the Pareto fronts in the population (pop).
+    fronts = tools.emo.sortLogNondominated(pop, len(pop))
+
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.gca()
+    anim = animation.FuncAnimation(fig, lambda i: animate(i, logbook),
+                                   frames=len(logbook), interval=60,
+                                   blit=True)
+    plt.close()
+    HTML(anim.to_html5_video())
+
