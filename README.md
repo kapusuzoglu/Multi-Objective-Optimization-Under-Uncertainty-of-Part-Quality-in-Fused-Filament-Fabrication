@@ -14,3 +14,8 @@ Save the animation of the Pareto optimal fronts
 
 ## ParetoOptim_AM_DEAP_3var_Exp_Hypervolume
 Calculate the hypervolume indicator wrt. number of generations
+
+
+## ParetoOptim_AM_DEAP_3var
+Performs a pareto front optimization for 3 integer variables (printer temperature, speed and layer height).
+Objective functions are BL (overall mean and standard deviation of the bond length, and thickness)
